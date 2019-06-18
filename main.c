@@ -7,8 +7,8 @@
 #define F_CPU 20000000
 #define USART0_BAUD_RATE(BAUD_RATE) ((float)(F_CPU * 64 / (16 * (float)BAUD_RATE)) + 0)
 
-#include "../include/avr/io.h"
-#include "../include/avr/interrupt.h"
+#include <io.h>
+#include <interrupt.h>
 //#include <string.h>
 
 #define NUM_VOICES 3

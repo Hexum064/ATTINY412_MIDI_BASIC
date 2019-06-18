@@ -71,7 +71,7 @@
         <property key="define-macros" value=""/>
         <property key="disable-optimizations" value="false"/>
         <property key="extra-include-directories"
-                  value="..\..\..\..\Program Files (x86)\Microchip\xc8\v2.05\dfp\include\avr"/>
+                  value="..\..\..\..\Program Files (x86)\Microchip\xc8\v2.05\dfp\include\avr;C:\Program Files (x86)\Microchip\xc8\v2.05\avr\avr\include\avr"/>
         <property key="favor-optimization-for" value="-speed,+space"/>
         <property key="garbage-collect-data" value="true"/>
         <property key="garbage-collect-functions" value="true"/>

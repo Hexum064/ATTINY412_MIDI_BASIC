@@ -10,9 +10,9 @@ CND_CONF=default
 CND_DISTDIR=dist
 TMPDIR=build/${CND_CONF}/${IMAGE_TYPE}/tmp-packaging
 TMPDIRNAME=tmp-packaging
-OUTPUT_PATH=dist/${CND_CONF}/${IMAGE_TYPE}/ATTINY_SYNTH_SIM_BASIC.X.${IMAGE_TYPE}.${OUTPUT_SUFFIX}
-OUTPUT_BASENAME=ATTINY_SYNTH_SIM_BASIC.X.${IMAGE_TYPE}.${OUTPUT_SUFFIX}
-PACKAGE_TOP_DIR=attinysynthsimbasic.x/
+OUTPUT_PATH=dist/${CND_CONF}/${IMAGE_TYPE}/ATTINY412_MIDI_BASIC.${IMAGE_TYPE}.${OUTPUT_SUFFIX}
+OUTPUT_BASENAME=ATTINY412_MIDI_BASIC.${IMAGE_TYPE}.${OUTPUT_SUFFIX}
+PACKAGE_TOP_DIR=attiny412midibasic/
 
 # Functions
 function checkReturnCode
@@ -57,15 +57,15 @@ mkdir -p ${TMPDIR}
 
 # Copy files and create directories and links
 cd "${TOP}"
-makeDirectory ${TMPDIR}/attinysynthsimbasic.x/bin
+makeDirectory ${TMPDIR}/attiny412midibasic/bin
 copyFileToTmpDir "${OUTPUT_PATH}" "${TMPDIR}/${PACKAGE_TOP_DIR}bin/${OUTPUT_BASENAME}" 0755
 
 
 # Generate tar file
 cd "${TOP}"
-rm -f ${CND_DISTDIR}/${CND_CONF}/package/attinysynthsimbasic.x.tar
+rm -f ${CND_DISTDIR}/${CND_CONF}/package/attiny412midibasic.tar
 cd ${TMPDIR}
-tar -vcf ../../../../${CND_DISTDIR}/${CND_CONF}/package/attinysynthsimbasic.x.tar *
+tar -vcf ../../../../${CND_DISTDIR}/${CND_CONF}/package/attiny412midibasic.tar *
 checkReturnCode
 
 # Cleanup
