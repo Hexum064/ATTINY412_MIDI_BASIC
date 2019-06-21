@@ -1,17 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?> 
 <project>                                  
-  <executable name="dist/default/production/ATTINY412_MIDI_BASIC.production.elf">                 
+  <executable name="dist/default/debug/ATTINY412_MIDI_BASIC.debug.elf">                 
     <memory name="program">              
       <units>bytes</units>                 
       <length>4096</length>                 
-      <used>3357</used>                     
-      <free>739</free>                     
+      <used>3260</used>                     
+      <free>836</free>                     
     </memory>                              
     <memory name="data">                 
       <units>bytes</units>                 
       <length>256</length>                 
-      <used>42</used>                     
-      <free>214</free>                     
+      <used>122</used>                     
+      <free>134</free>                     
     </memory>                              
   </executable>                            
 </project>                                 

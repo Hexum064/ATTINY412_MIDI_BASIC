@@ -11,7 +11,7 @@
 #include <interrupt.h>
 //#include <string.h>
 
-#define NUM_VOICES 3
+#define NUM_VOICES 4
 #define STATUS_BYTE_MASK 0xF0
 #define NOTE_ON_STATUS 0x90
 #define NOTE_OFF_STATUS 0x80
@@ -21,6 +21,7 @@
 volatile uint8_t _voice0Out;
 volatile uint8_t _voice1Out;
 volatile uint8_t _voice2Out;
+volatile uint8_t _voice3Out;
 volatile uint8_t _noteIn = 0;
 volatile uint8_t _rxNoteStatus = 0;
 volatile uint16_t _updateDisplayFlag = 0;
@@ -31,6 +32,7 @@ volatile uint16_t _pinDebounce = 0;
 volatile int16_t _pitchBend0; //signed
 volatile int16_t _pitchBend1; //signed
 volatile int16_t _pitchBend2; //signed
+volatile int16_t _pitchBend3; //signed
 volatile uint8_t _pitchBendVal;
 
 typedef struct voice
@@ -58,6 +60,7 @@ static voice_t _voices[NUM_VOICES] =
 {
 	{0, 0, 0, 0},
 	{0, 0, 0, 0},
+	{0, 0, 0, 0},    
 	{0, 0, 0, 0}
 };
 
@@ -115,9 +118,13 @@ void initTimers()
 
     TCB0.CTRLB = TCB_CNTMODE_INT_gc;
     TCB0.INTCTRL = TCB_CAPT_bm;
-    TCB0.CCMP = 200; //With CLKDIV2, this should file the IRQ at 50kHz.
-    TCB0.CTRLA = TCB_CLKSEL_CLKDIV2_gc | TCB_ENABLE_bm;
+//    TCB0.CCMP = 200; //With CLKDIV2, this should file the IRQ at 50kHz.
+    TCB0.CTRLA = TCB_CLKSEL_CLKTCA_gc | TCB_ENABLE_bm;
 	
+    TCD0.CTRLB = TCD_WGMODE_ONERAMP_gc;
+    TCD0.INTCTRL = TCD_OVF_bm;
+    TCD0.CMPBCLR = 12; //With CNTPRES1, this should file the IRQ at 50kHz.
+    TCD0.CTRLA = TCD_CLKSEL_SYSCLK_gc | TCD_CNTPRES1_bm | TCD_ENABLE_bm;
 }
 
 void initMIDIUART()
@@ -138,7 +145,7 @@ void initRGBSPI()
 void initDisplayModePin()
 {
     PORTA.DIRCLR = PIN2_bm;
-    PORTA.PIN2CTRL = PORT_PULLUPEN_bm;
+    //PORTA.PIN2CTRL = PORT_PULLUPEN_bm;
 }
 
 
@@ -148,50 +155,6 @@ void initInterrupts()
     sei();    
 }
 
-//void testTimingWithBlinkingLED(void)
-//{
-//    PORTA.DIRSET = PIN1_bm;
-//    
-//    while(1)
-//    {
-//        PORTA.OUTTGL = PIN1_bm;
-//    }
-//}
-
-
-
-
-
-/*
- * 
- */
-
-//void USART0_sendChar(char c)
-//{
-//    while (!(USART0.STATUS & USART_DREIF_bm))
-//    {
-//        ;
-//    }
-//    USART0.TXDATAL = c;
-//}
-//
-//void USART0_sendString(char *str)
-//{
-//    for(size_t i = 0; i < strlen(str); i++)
-//    {
-//        USART0_sendChar(str[i]);
-//    }
-//}
-//
-//uint8_t USART0_read()
-//{
-//    while (!(USART0.STATUS & USART_RXCIF_bm))
-//    {
-//        
-//    }
-//    PORTA.OUTTGL = PIN1_bm;
-//    return USART0.RXDATAL;
-//}
 
 void sendSPI(uint8_t val)
 {
@@ -199,75 +162,6 @@ void sendSPI(uint8_t val)
    
     SPI0.DATA = val;    
 }
-//volatile uint8_t _tempBlue = 0;
-//volatile uint8_t _tempGreen = 0;
-//volatile uint8_t _tempRed = 0;
-//
-//void testRGB()
-//{
-//    //Start frame
-//    sendSPI(0);
-//    sendSPI(0);
-//    sendSPI(0);
-//    sendSPI(0);
-//    
-//    for(int i = 0; i < 24; i++)
-//    {
-//        sendSPI(0xE7);// 0b1110 1111
-//        sendSPI(_tempBlue);// blue
-//        sendSPI(_tempGreen);// green
-//        sendSPI(_tempRed);// red
-//        
-////        sendSPI(0xE7);// 0b1110 1111
-////        sendSPI(0x00);// blue
-////        sendSPI(0xEF);// green
-////        sendSPI(0x00);// red
-////        
-////        sendSPI(0xE7);// 0b1110 1111
-////        sendSPI(0x00);// blue
-////        sendSPI(0x00);// green
-////        sendSPI(0xEF);// red
-//    }
-//    _tempBlue++;
-//    _tempRed+=7;
-//    _tempGreen+=3;
-//     
-//    //End frame
-//    sendSPI(0xFF);
-//    sendSPI(0);
-////    sendSPI(0);
-////    sendSPI(0);
-//
-//}
-
-
-
-//void uartTest()
-//{
-//    PORTA.DIR |= PIN1_bm;
-//    PORTA.DIR |= PIN6_bm; // &= ~PIN2_bm;
-//    PORTA.DIR &= ~PIN7_bm;
-//
-//    USART0.BAUD = (uint16_t)USART0_BAUD_RATE(31500);
-//    USART0.CTRLA |= USART_RXCIE_bm;
-//    USART0.CTRLB |= USART_RXEN_bm;
-//    
-////    while(1)
-////    {
-////        USART0_read();
-////    }
-//    
-//    SREG = 1;
-//    sei();
-//    
-//    while (1)
-//    {
-//        //USART0_sendString("UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU");
-//        //USART0_sendChar('U');
-//        
-//
-//    }
-//}
 
 
 //----NOTE CONTROL----
@@ -313,16 +207,20 @@ void calcPitchBends() //we only expect pitchVal to be a 6 bit number
         _pitchBend0 = 0;
         _pitchBend1 = 0;
         _pitchBend2 = 0;
+        _pitchBend3 = 0;
         return;
     }
     
     _pitchBend0 = calcPitchBend(0);
     _pitchBend1 = calcPitchBend(1);
     _pitchBend2 = calcPitchBend(2);
+    _pitchBend3 = calcPitchBend(3);
 }
 
 int8_t getNextVoice(uint8_t note)
 {
+    //return 0;
+    
 	for(int i = 0; i < NUM_VOICES; i++)
 	{
 		if (_voices[i].noteNumber == 0 || _voices[i].noteNumber == note)
@@ -344,21 +242,23 @@ void activateVoice(uint8_t voiceNum)
 	switch(voiceNum)
 	{
 		case 0:
-			TCA0.SINGLE.CMP0 = _voices[voiceNum].freq;
+
+			TCA0.SINGLE.CMP0 = TCA0.SINGLE.CNT + _voices[voiceNum].freq;
 			//TCC0.INTCTRLB |= TC_TC0_CCAINTLVL_HI_gc;
 			break;
 		case 1:
-			TCA0.SINGLE.CMP1 = _voices[voiceNum].freq;
+			TCA0.SINGLE.CMP1 = TCA0.SINGLE.CNT + _voices[voiceNum].freq;
 			//TCC0.INTCTRLB |= TC_TC0_CCBINTLVL_HI_gc;
 			break;
 		case 2:
-			TCA0.SINGLE.CMP2 = _voices[voiceNum].freq;
+			TCA0.SINGLE.CMP2 = TCA0.SINGLE.CNT + _voices[voiceNum].freq;
 			//TCC0.INTCTRLB |= TC_TC0_CCCINTLVL_HI_gc;
 			break;
-		//case 3:
+		case 3:
 			//TCC1.CCA = voices[voiceNum].freq;
-
-//			break;						
+            TCB0.CCMP = _voices[voiceNum].freq;
+            TCB0.CNT = 0;
+			break;						
 		
 	}
 }
@@ -369,20 +269,22 @@ void deactivateVoice(uint8_t voiceNum)
 	switch(voiceNum)
 	{
 		case 0:
-		TCA0.SINGLE.CMP0 = 0;
-		_voice0Out = 0;
-		break;
+            TCA0.SINGLE.CMP0 = 0;
+            _voice0Out = 0;
+            break;
 		case 1:
-		TCA0.SINGLE.CMP1 = 0;
-		_voice1Out = 0;
-		break;
+            TCA0.SINGLE.CMP1 = 0;
+            _voice1Out = 0;
+            break;
 		case 2:
-		TCA0.SINGLE.CMP2 = 0;
-		_voice2Out = 0;
-		//break;
-		//case 3:
-
-		break;
+            TCA0.SINGLE.CMP2 = 0;
+            _voice2Out = 0;
+            break;
+		case 3:
+            TCB0.CCMP = 0;
+            TCB0.CNT = 0;
+            _voice3Out = 0;
+            break;
 		
 	}	
 }
@@ -404,7 +306,7 @@ void noteOff(uint8_t note)
 
 void noteOn(uint8_t note, uint8_t velocity)
 {
-	uint8_t voiceNum;
+	int8_t voiceNum;
     
 	if (velocity == 0)
 	{
@@ -457,12 +359,60 @@ void blankDisplay()
             
 }
 
+void displayFreqVU(uint8_t red, uint8_t green, uint8_t blue)
+{
+
+    uint8_t num = _voices[0].noteNumber;;
+    uint8_t lum = 0xE1;
+    uint8_t color = 0;
+    
+    
+    if (_voices[1].noteNumber > num)
+    {
+        num = _voices[1].noteNumber;
+    }
+
+    if (_voices[2].noteNumber > num)
+    {
+        num = _voices[2].noteNumber;
+    }
+
+    if (_voices[3].noteNumber > num)
+    {
+        num = _voices[3].noteNumber;
+    }
+    
+    if (num > 54)
+    {
+        color = num - 54;
+        color <<= 2;
+    }   
+    
+    
+    
+    lum += 0xE0 + (color >> 4);
+    
+
+    
+    color += 8;
+    
+    for(int i=0;i<LED_COUNT;i++)
+    {                
+        sendSPI(lum);                          //L
+        sendSPI(blue & color);      //B
+        sendSPI(green & color);      //G
+        sendSPI(red & color);           //R
+    }
+    
+}
+
 void updateDisplay()
 {
     uint8_t red = 0;
     uint8_t green = 0;
     uint8_t blue = 0;
     uint8_t step = 0;
+    uint8_t vals[4] = { 0, 0, 0, 0 };
     
     if (!_displayEnabled)
     {
@@ -531,37 +481,14 @@ void updateDisplay()
             break;
         case 2: //Red VU
             
-            red = (_voices[0].velocity + _voices[1].velocity + _voices[2].velocity) >> 2;
-
-            for(int i=0;i<LED_COUNT;i++)
-            {                
-                sendSPI(0xE7);                          //L
-                sendSPI(0);      //B
-                sendSPI(0);      //G
-                sendSPI(red);           //R
-            }
+            displayFreqVU(0xFF, 0, 0);
             break;
         case 3: //Green VU
-            green = (_voices[0].velocity + _voices[1].velocity + _voices[2].velocity) >> 2;
-
-            for(int i=0;i<LED_COUNT;i++)
-            {                
-                sendSPI(0xE7);                          //L
-                sendSPI(0);      //B
-                sendSPI(green);      //G
-                sendSPI(0);           //R
-            }
+            displayFreqVU(0, 0xFF, 0);
             break;
         case 4: //Blue VU
-            blue = (_voices[0].velocity + _voices[1].velocity + _voices[2].velocity) >> 2;
+            displayFreqVU(0, 0, 0xFF);
 
-            for(int i=0;i<LED_COUNT;i++)
-            {                
-                sendSPI(0xE7);                          //L
-                sendSPI(blue);      //B
-                sendSPI(0);      //G
-                sendSPI(0);           //R
-            }
             break;
             
         case 5: //Bar VU
@@ -570,8 +497,9 @@ void updateDisplay()
             step += (_voices[0].velocity && 1);
             step += (_voices[1].velocity && 1);
             step += (_voices[2].velocity && 1);
-            
-            step *= 8;
+            step += (_voices[3].velocity && 1);
+                        
+            step *= 6;
             
             if (_colorStep < step)
             {
@@ -598,64 +526,94 @@ void updateDisplay()
                 _colorStep-=2;
             }
             break;            
-        case 6: //Frequency VU
-            red = (24* _voices[0].noteNumber)/108;
-            green = (24* _voices[1].noteNumber)/108;
-            blue = (24* _voices[2].noteNumber)/108;            
-
+        case 6: //Multi color VU
+            
+            step = (_voices[0].velocity + _voices[1].velocity + _voices[2].velocity + _voices[3].velocity) >> 4;
+            step += 0xE1;
+            
+            for(int i=LED_COUNT - 1;i >= 0; i--)
+            {                
+                sendSPI(step);                          //L
+                sendSPI(_colors[i].blue);      //B
+                sendSPI(_colors[i].green);      //G
+                sendSPI(_colors[i].red);           //R        //R
+            }
+                    
+            break;              
+        case 7: //Note VU
+            
+         
+            
+            vals[0] = (24* _voices[0].noteNumber)/108;
+            vals[1] = (24* _voices[1].noteNumber)/108;
+            vals[2] = (24* _voices[2].noteNumber)/108;            
+            vals[3] = (24* _voices[3].noteNumber)/108;      
+            
             if (_pitchBendVal < 16)
             {
-                if (red > 0)
+                if (vals[0] > 0)
                 {
-                    red -= 1;
+                    vals[0] -= 1;
                 }
                 
-                if (green > 0)
+                if (vals[1] > 0)
                 {
-                    green -= 1;
+                    vals[1] -= 1;
                 }
                 
-                if (blue > 0)
+                if (vals[2] > 0)
                 {
-                    blue -= 1;
-                }                
+                    vals[2] -= 1;
+                }    
+                
+                if (vals[3] > 0)
+                {
+                    vals[3] -= 1;
+                } 
             }
             
             if (_pitchBendVal < 32)
             {
-                if (red > 0)
+                if (vals[0] > 0)
                 {
-                    red -= 1;
+                    vals[0] -= 1;
                 }
                 
-                if (green > 0)
+                if (vals[1] > 0)
                 {
-                    green -= 1;
+                    vals[1] -= 1;
                 }
                 
-                if (blue > 0)
+                if (vals[2] > 0)
                 {
-                    blue -= 1;
-                }                
+                    vals[2] -= 1;
+                }     
+                
+                if (vals[3] > 0)
+                {
+                    vals[3] -= 1;
+                }                 
             }
             
             if (_pitchBendVal > 32)
             {
-                red++ ;
-                green++ ;
-                blue++ ;
+                vals[0]++ ;
+                vals[1]++ ;
+                vals[2]++ ;
+                vals[3]++;
             }
             
             if (_pitchBendVal > 48)
             {
-                red++ ;
-                green++ ;
-                blue++ ;
+                vals[0]++ ;
+                vals[1]++ ;
+                vals[2]++ ;
+                vals[3]++;
             }
             
             for(int i=0;i<LED_COUNT;i++)
             {       
-                if (i+1 == red || i+1 == green || i+1 == blue)
+                if (i+1 == vals[0] || i+1 == vals[1] || i+1 == vals[2] || i+1 == vals[3])
                 {
                     sendSPI(0xE7);   
                     sendSPI(_colors[i].blue >> 0);      //B
@@ -674,59 +632,7 @@ void updateDisplay()
 
             }            
             break;
-        case 7: //Voice VU
-            
-            step = 0;
-            
-            if (_voices[0].velocity)
-            {
-                step++;
-            }
-
-            if (_voices[1].velocity)
-            {
-                step++;
-            }
-
-            if (_voices[2].velocity)
-            {
-                step++;
-            }
-            
-            if (step == 1)
-            {
-                _colors[LED_COUNT].red = 0;
-                _colors[LED_COUNT].green = 127;
-                _colors[LED_COUNT].blue = 0;
-            }
-            
-            if (step == 2)
-            {
-                _colors[LED_COUNT].red = 0;
-                _colors[LED_COUNT].green = 0;
-                _colors[LED_COUNT].blue = 127;
-            } 
-
-            if (step == 3)
-            {
-                _colors[LED_COUNT].red = 127;
-                _colors[LED_COUNT].green = 0;
-                _colors[LED_COUNT].blue = 0;
-            } 
-            
-            for(int i=0;i<LED_COUNT;i++)
-            {       
-                sendSPI(0xE7);   
-                sendSPI(_colors[LED_COUNT].blue >> 0);      //B
-                sendSPI(_colors[LED_COUNT].green >> 0);      //G
-                sendSPI(_colors[LED_COUNT].red >> 0);           //R                   
-            }  
-            
-            _colors[LED_COUNT].red >>= 1;
-            _colors[LED_COUNT].green >>= 1;
-            _colors[LED_COUNT].blue >>= 1;
-                    
-            break;            
+          
     }
     sendEndOfFrame();
 }
@@ -851,20 +757,64 @@ ISR(TCA0_CMP2_vect)
 
 ISR(TCB0_INT_vect)
 {
-    uint16_t out = _voice0Out + _voice1Out + _voice2Out;
+    
     TCB0.INTFLAGS = TCB_CAPTEI_bm;
+    TCB0.CCMP = _voices[3].freq + _pitchBend3;
+	_voices[3].waveHi ^= 0xFF;
+	_voice3Out = _voices[3].waveHi & _voices[3].velocity;
+//    return;
+//    
+//    uint16_t out = (_voice0Out >> 1) + (_voice1Out >> 1) + (_voice2Out >> 1) + (_voice3Out >> 1);
+//    TCB0.INTFLAGS = TCB_CAPTEI_bm;
+//    
+//
+//    DAC0.DATA = out;
+//    
+//   
+//    
+//    if (!(PORTA.IN & PIN2_bm)) //NOT because we are triggering low
+//    {
+//        _pinDebounce++;
+//        
+//
+//    }
+//    else 
+//    {
+//        
+//        //Add this here so that the button is only recognized on release
+//        if (_pinDebounce > 12000)
+//        {
+//            _displayEnabled ^= 0xFF; //Toggle the display on a long hold;
+//        }
+//        else if (_pinDebounce > 3000 && _displayEnabled)
+//        {
+//            _colorStep = 0;
+//            _displayMode++;
+//        }
+//          
+//
+//        
+//        _pinDebounce = 0;
+//    }
+//    
+//     _updateDisplayFlag++;
     
-	if (out > 0xFF)
-        out = out >> 1;
+}
 
-    if (out > 0xFF)
-        out = out >> 1;
+ISR(TCD0_OVF_vect)
+{
+    uint16_t out = (_voice0Out >> 1) + (_voice1Out >> 1) + (_voice2Out >> 1) + (_voice3Out >> 1);
+    TCD0.INTFLAGS = TCD_OVF_bm;
     
+//    DAC0.DATA ^= 0xFF;
+//    return;
+    
+
     DAC0.DATA = out;
     
    
     
-    if (!(PORTA.IN & PIN2_bm)) //NOT because we are triggering low
+    if ((PORTA.IN & PIN2_bm)) 
     {
         _pinDebounce++;
         
