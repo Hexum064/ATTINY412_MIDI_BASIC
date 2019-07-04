@@ -17,6 +17,17 @@
 #define NOTE_OFF_STATUS 0x80
 #define PITCH_BEND_STATUS 0xE0
 #define LED_COUNT 24
+#define START_PLAY_STATUS 0xFA
+#define CONTINUE_PLAY_STATUS 0xFB
+#define STOP_PLAY_STATUS 0xFC
+#define UPDATE_PLAY_MODE_STATUS 0xFD
+
+#define RED_DISPLAY 0x0000007F
+#define GREEN_DISPLAY 0x00007F00
+#define BLUE_DISPLAY 0x007F0000
+
+#define DISPLAY_UPDATE_PER 2500
+#define MIDI_STATUS_SHOW_PER 10000
 
 volatile uint8_t _voice0Out;
 volatile uint8_t _voice1Out;
@@ -34,6 +45,10 @@ volatile int16_t _pitchBend1; //signed
 volatile int16_t _pitchBend2; //signed
 volatile int16_t _pitchBend3; //signed
 volatile uint8_t _pitchBendVal;
+volatile uint16_t _fileIndex = 1; //making this index 1 based instead of 0 so there is always something to display
+volatile uint32_t _startPlayDisplayColor = RED_DISPLAY; //red means stop after each, green means continuous play, blue means loop
+volatile uint16_t _midiStatusDisplayFlag = 0;
+volatile uint16_t _midiStatusDisplayCount = 0;
 
 typedef struct voice
 {
@@ -406,6 +421,37 @@ void displayFreqVU(uint8_t red, uint8_t green, uint8_t blue)
     
 }
 
+void showMidiStatusDisplay()
+{
+    uint16_t index = _fileIndex + 1;
+    
+    sendStartOfFrame();
+    
+    for (uint8_t i = 0; i < LED_COUNT; i++)
+    {
+        if (!(index & 0x01)) //Check each bit in index and if it's a 0, don't light up the LED.
+        {
+            sendSPI(0xE7);   
+            sendSPI(0);      //B
+            sendSPI(0);      //G
+            sendSPI(0);           //R                    
+        }   
+        else
+        {
+            sendSPI(0xE1);   
+            sendSPI(_startPlayDisplayColor >> 16);      //B
+            sendSPI(_startPlayDisplayColor >> 8);      //G
+            sendSPI(_startPlayDisplayColor);           //R
+        }              
+   
+
+        //Not worried about doing this more than 15 times because index will just end up as all 0s.
+        index >>= 1;
+    }
+    
+    sendEndOfFrame();
+}
+
 void updateDisplay()
 {
     uint8_t red = 0;
@@ -413,6 +459,22 @@ void updateDisplay()
     uint8_t blue = 0;
     uint8_t step = 0;
     uint8_t vals[4] = { 0, 0, 0, 0 };
+    
+    if (_midiStatusDisplayFlag)
+    {
+        if (_midiStatusDisplayCount < MIDI_STATUS_SHOW_PER)
+        {
+            showMidiStatusDisplay();  
+            _midiStatusDisplayCount++;
+        }
+        else
+        {
+            _midiStatusDisplayCount = 0;
+            _midiStatusDisplayFlag = 0;
+        }
+        
+        return;
+    }
     
     if (!_displayEnabled)
     {
@@ -637,6 +699,8 @@ void updateDisplay()
     sendEndOfFrame();
 }
 
+
+
 int main(int argc, char** argv) {
 
     initClock();
@@ -660,10 +724,13 @@ int main(int argc, char** argv) {
 
 //    noteOn(49, 0x07);
     _displayEnabled = 0xFF;
+    _midiStatusDisplayFlag = 0;
+    _fileIndex = 0;
+
     while(1)
     {
-        if (_updateDisplayFlag >= 2500)
-        {
+        if (_updateDisplayFlag >= DISPLAY_UPDATE_PER)
+        {            
             updateDisplay();
         }
     }
@@ -691,6 +758,45 @@ ISR(USART0_RXC_vect)
         _rxNoteStatus = 4;
         return;
     }
+    
+        
+  	if (data == UPDATE_PLAY_MODE_STATUS)
+	{
+  
+		_rxNoteStatus = 8;
+		return;
+	}
+    
+    if (data == START_PLAY_STATUS)
+	{
+        //Make sure the clocks are started at the end byte and clear the notes
+        for (data = 0; data < NUM_VOICES; data++)
+        {            
+            _voices[data].velocity = 0;
+            _voices[data].noteNumber = 0;
+        }        
+		_rxNoteStatus = 6;
+		return;
+	}
+    
+	if (data == CONTINUE_PLAY_STATUS)
+	{
+		 //No extra bits needed. Start the clocks
+        TCA0.SINGLE.CTRLA |= TCA_SINGLE_ENABLE_bm;
+        TCB0.CTRLA |= TCB_ENABLE_bm;
+        _rxNoteStatus = 0;
+		return;
+	}
+
+	if (data == STOP_PLAY_STATUS)
+    {
+        //No extra bits needed. Stop the clocks
+        TCA0.SINGLE.CTRLA &= ~TCA_SINGLE_ENABLE_bm;
+        TCB0.CTRLA &= ~TCB_ENABLE_bm;
+        _rxNoteStatus = 0;
+        return;
+    }
+
     
 	if (_rxNoteStatus == 1)
 	{
@@ -728,6 +834,48 @@ ISR(USART0_RXC_vect)
         calcPitchBends();
         return;
     }
+    
+    if (_rxNoteStatus == 6)
+    {
+        _fileIndex = (uint16_t)data << 8;
+        _rxNoteStatus = 7;
+        return;
+    }
+    
+    if (_rxNoteStatus == 7)
+    {
+        TCA0.SINGLE.CTRLA |= TCA_SINGLE_ENABLE_bm;
+        TCB0.CTRLA |= TCB_ENABLE_bm;        
+        _fileIndex += (uint16_t)data;
+        _rxNoteStatus = 0;
+        _midiStatusDisplayCount = 0;
+        _midiStatusDisplayFlag = 0xFF;
+        return;
+    }
+    
+    if (_rxNoteStatus == 8)
+    {
+        //UpdateDisplay. Set global color and show index + 1 again
+        switch(data)
+        {
+            case 0:
+                _startPlayDisplayColor = GREEN_DISPLAY;
+                break;
+            case 1:
+                _startPlayDisplayColor = BLUE_DISPLAY;
+                break;
+            case 2:
+                _startPlayDisplayColor = RED_DISPLAY;
+                break;
+
+        }
+        
+        _midiStatusDisplayCount = 0;
+        _midiStatusDisplayFlag = 0xFF;
+        
+        _rxNoteStatus = 0;
+        return;
+    }
 }
  
 ISR(TCA0_CMP0_vect)
@@ -762,43 +910,6 @@ ISR(TCB0_INT_vect)
     TCB0.CCMP = _voices[3].freq + _pitchBend3;
 	_voices[3].waveHi ^= 0xFF;
 	_voice3Out = _voices[3].waveHi & _voices[3].velocity;
-//    return;
-//    
-//    uint16_t out = (_voice0Out >> 1) + (_voice1Out >> 1) + (_voice2Out >> 1) + (_voice3Out >> 1);
-//    TCB0.INTFLAGS = TCB_CAPTEI_bm;
-//    
-//
-//    DAC0.DATA = out;
-//    
-//   
-//    
-//    if (!(PORTA.IN & PIN2_bm)) //NOT because we are triggering low
-//    {
-//        _pinDebounce++;
-//        
-//
-//    }
-//    else 
-//    {
-//        
-//        //Add this here so that the button is only recognized on release
-//        if (_pinDebounce > 12000)
-//        {
-//            _displayEnabled ^= 0xFF; //Toggle the display on a long hold;
-//        }
-//        else if (_pinDebounce > 3000 && _displayEnabled)
-//        {
-//            _colorStep = 0;
-//            _displayMode++;
-//        }
-//          
-//
-//        
-//        _pinDebounce = 0;
-//    }
-//    
-//     _updateDisplayFlag++;
-    
 }
 
 ISR(TCD0_OVF_vect)
