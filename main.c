@@ -925,21 +925,31 @@ ISR(TCD0_OVF_vect)
     
    
     
+    
     if ((PORTA.IN & PIN2_bm)) 
     {
-        _pinDebounce++;
+        if (_pinDebounce < 0xFFFF)
+        {
+            _pinDebounce++;
+        }
         
+        if (_pinDebounce > 12000)
+        {
+            _displayEnabled = 00; //Toggle the display on a long hold;
+        } 
+        else if (_pinDebounce > 3000 && !_displayEnabled)
+        {
+            _displayEnabled = 0xFF;
+            _pinDebounce = 0;
+        }
 
     }
     else 
     {
         
         //Add this here so that the button is only recognized on release
-        if (_pinDebounce > 12000)
-        {
-            _displayEnabled ^= 0xFF; //Toggle the display on a long hold;
-        }
-        else if (_pinDebounce > 3000 && _displayEnabled)
+
+        if (_pinDebounce > 3000 && _displayEnabled)
         {
             _colorStep = 0;
             _displayMode++;
@@ -951,5 +961,4 @@ ISR(TCD0_OVF_vect)
     }
     
      _updateDisplayFlag++;
-    
-}
+}   
